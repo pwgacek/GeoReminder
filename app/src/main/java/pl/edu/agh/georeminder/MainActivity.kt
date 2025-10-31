@@ -22,12 +22,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import pl.edu.agh.georeminder.model.Task
+import pl.edu.agh.georeminder.ui.AddTaskScreen
 import pl.edu.agh.georeminder.ui.theme.GeoReminderTheme
 
 class MainActivity : ComponentActivity() {
@@ -44,6 +48,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen() {
+    var showAddTaskScreen by remember { mutableStateOf(false) }
     val tasks = remember {
         mutableStateListOf(
             Task(1L, "Buy groceries", "Supermarket on Main St", 50.0647, 19.9450, 150f),
@@ -52,12 +57,35 @@ fun MainScreen() {
         )
     }
 
+    if (showAddTaskScreen) {
+        AddTaskScreen(
+            onSave = { newTask ->
+                tasks.add(newTask)
+                showAddTaskScreen = false
+            },
+            onCancel = {
+                showAddTaskScreen = false
+            }
+        )
+    } else {
+        TaskListScreen(
+            tasks = tasks,
+            onAddTask = { showAddTaskScreen = true }
+        )
+    }
+}
+
+@Composable
+fun TaskListScreen(
+    tasks: List<Task>,
+    onAddTask: () -> Unit
+) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { /* TODO: Add new task */ },
+                onClick = onAddTask,
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(
