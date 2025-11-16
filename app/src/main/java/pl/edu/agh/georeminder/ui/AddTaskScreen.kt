@@ -195,6 +195,7 @@ fun AddTaskScreen(
                     cameraPositionState = cameraPositionState,
                     onMapClick = { latLng ->
                         selectedLocation = latLng
+                        isAddressEdited = false
                     }
                 ) {
                     selectedLocation?.let { location ->
