@@ -8,9 +8,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -18,30 +20,35 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import pl.edu.agh.georeminder.controller.TaskViewModel
 import pl.edu.agh.georeminder.location.GeofenceManager
 import pl.edu.agh.georeminder.model.Task
 import pl.edu.agh.georeminder.ui.AddTaskScreen
 import pl.edu.agh.georeminder.ui.theme.GeoReminderTheme
-
+import androidx.lifecycle.viewmodel.compose.viewModel
 class MainActivity : ComponentActivity() {
 
     private val geofenceManager by lazy { GeofenceManager(this) }
@@ -51,6 +58,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             GeoReminderTheme {
+                val taskViewModel: TaskViewModel = viewModel()
                 val context = LocalContext.current
                 val permissions = arrayOf(
                     Manifest.permission.ACCESS_FINE_LOCATION,
@@ -78,6 +86,7 @@ class MainActivity : ComponentActivity() {
 
                 if (permissionsGranted.value) {
                     MainScreen(
+                        viewModel = taskViewModel,
                         addGeofence = geofenceManager::addGeofenceForTask,
                         removeGeofence = geofenceManager::removeGeofenceForTask,
                     )
@@ -91,17 +100,14 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen(
+    viewModel: TaskViewModel,
     addGeofence: (Task) -> Unit,
-    removeGeofence: (Task) -> Unit,
+    removeGeofence: (Task) -> Unit
 ) {
     var showAddTaskScreen by remember { mutableStateOf(false) }
-    val tasks = remember {
-        mutableStateListOf(
-            Task(1L, "Buy groceries", "Supermarket on Main St", 50.0647, 19.9450, 150f),
-            Task(2L, "Pick up package", "Post Office", 50.0612, 19.9380, 100f),
-            Task(3L, "Return books", "City Library", 50.0680, 19.9560, 200f)
-        )
-    }
+    var taskBeingEdited by remember { mutableStateOf<Task?>(null) }
+
+    val tasks by viewModel.tasks.collectAsState()
 
     // Add geofences for initial tasks
     LaunchedEffect(tasks) {
@@ -110,19 +116,47 @@ fun MainScreen(
 
     if (showAddTaskScreen) {
         AddTaskScreen(
+            taskToEdit = taskBeingEdited,
             onSave = { newTask ->
-                tasks.add(newTask)
-                addGeofence(newTask)
+                if (taskBeingEdited == null) {
+                    viewModel.saveTask(
+                        newTask.title,
+                        newTask.address,
+                        newTask.latitude,
+                        newTask.longitude,
+                        newTask.radius
+                    ) { saved ->
+                        addGeofence(saved)
+                    }
+                } else {
+                    viewModel.updateTask(newTask)
+                    removeGeofence(taskBeingEdited!!)
+                    addGeofence(newTask)
+                }
+
                 showAddTaskScreen = false
+                taskBeingEdited = null
             },
             onCancel = {
                 showAddTaskScreen = false
+                taskBeingEdited = null
             }
         )
     } else {
         TaskListScreen(
             tasks = tasks,
-            onAddTask = { showAddTaskScreen = true }
+            onAddTask = {
+                taskBeingEdited = null
+                showAddTaskScreen = true
+            },
+            onTaskClick = { task ->
+                taskBeingEdited = task
+                showAddTaskScreen = true
+            },
+            onDeleteTask = { task ->
+                viewModel.deleteTask(task)
+                removeGeofence(task)
+            }
         )
     }
 }
@@ -130,7 +164,9 @@ fun MainScreen(
 @Composable
 fun TaskListScreen(
     tasks: List<Task>,
-    onAddTask: () -> Unit
+    onAddTask: () -> Unit,
+    onTaskClick: (Task) -> Unit,
+    onDeleteTask: (Task) -> Unit
 ) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -180,7 +216,9 @@ fun TaskListScreen(
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
                     items(tasks.filter { !it.isCompleted }) { task ->
-                        TaskItem(task = task)
+                        TaskItem(task = task,
+                            onClick = { onTaskClick(task) },
+                            onDelete = { onDeleteTask(task) })
                     }
                 }
             }
@@ -189,38 +227,49 @@ fun TaskListScreen(
 }
 
 @Composable
-fun TaskItem(task: Task, modifier: Modifier = Modifier) {
+fun TaskItem(
+    task: Task,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+    onDelete: () -> Unit
+) {
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween, // title/address left, button right
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = task.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = task.address,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                modifier = Modifier.padding(top = 4.dp)
-            )
+            Column(
+                modifier = Modifier.weight(1f) // take available space
+            ) {
+                Text(
+                    text = task.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = task.address,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete")
+            }
         }
     }
 }
 
-@Preview(showBackground = true)
-@Composable
-fun MainScreenPreview() {
-    GeoReminderTheme {
-        MainScreen(addGeofence = {}, removeGeofence = {})
-    }
-}
+

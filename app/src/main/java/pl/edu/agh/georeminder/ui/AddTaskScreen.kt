@@ -29,13 +29,19 @@ import kotlin.math.roundToInt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTaskScreen(
+    taskToEdit: Task? = null,
     onSave: (Task) -> Unit,
     onCancel: () -> Unit
 ) {
-    var title by remember { mutableStateOf("") }
-    var address by remember { mutableStateOf("") }
-    var selectedLocation by remember { mutableStateOf<LatLng?>(null) }
-    var radius by remember { mutableFloatStateOf(100f) }
+    var title by remember { mutableStateOf(taskToEdit?.title ?: "") }
+    var address by remember { mutableStateOf(taskToEdit?.address ?: "") }
+    var isAddressEdited by remember { mutableStateOf(taskToEdit != null) }
+    var selectedLocation by remember {
+        mutableStateOf(
+            taskToEdit?.let { LatLng(it.latitude, it.longitude) }
+        )
+    }
+    var radius by remember { mutableFloatStateOf(taskToEdit?.radius ?: 100f) }
     var hasLocationPermission by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
@@ -65,7 +71,6 @@ fun AddTaskScreen(
         }
     }
 
-    // Request location permission on start
     LaunchedEffect(Unit) {
         locationPermissionLauncher.launch(
             arrayOf(
@@ -75,12 +80,13 @@ fun AddTaskScreen(
         )
     }
 
-    // Update address when location changes
     LaunchedEffect(selectedLocation) {
-        selectedLocation?.let { location ->
-            val geocodedAddress = getAddressFromLocation(context, location)
-            if (geocodedAddress != null) {
-                address = geocodedAddress
+        if (!isAddressEdited) { // only auto-update if allowed
+            selectedLocation?.let { location ->
+                val geocodedAddress = getAddressFromLocation(context, location)
+                if (!geocodedAddress.isNullOrBlank()) {
+                    address = geocodedAddress
+                }
             }
         }
     }
@@ -88,7 +94,12 @@ fun AddTaskScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Add New Task") },
+                title = {
+                    Text(
+                        if (taskToEdit == null) "Add New Task"
+                        else "Edit Task"
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cancel")
@@ -100,7 +111,7 @@ fun AddTaskScreen(
                             if (title.isNotBlank() && selectedLocation != null) {
                                 onSave(
                                     Task(
-                                        id = System.currentTimeMillis(),
+                                        id = taskToEdit?.id ?: System.currentTimeMillis(),
                                         title = title,
                                         address = address.ifBlank { "Location selected" },
                                         latitude = selectedLocation!!.latitude,
@@ -141,7 +152,10 @@ fun AddTaskScreen(
 
                 OutlinedTextField(
                     value = address,
-                    onValueChange = { address = it },
+                    onValueChange = {
+                        address = it
+                        isAddressEdited = true // user manually typed
+                    },
                     label = { Text("Address") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true

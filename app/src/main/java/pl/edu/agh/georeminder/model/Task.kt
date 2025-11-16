@@ -1,7 +1,11 @@
 package pl.edu.agh.georeminder.model
 
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName="Task")
 data class Task(
-    val id: Long,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0L,
     val title: String,
     val address: String,
     val latitude: Double,
