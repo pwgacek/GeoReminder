@@ -6,10 +6,13 @@ import android.location.Geocoder
 import android.location.Location
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,11 +20,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import pl.edu.agh.georeminder.model.FavouritePlace
 import pl.edu.agh.georeminder.model.Task
 import java.io.IOException
 import kotlin.math.roundToInt
@@ -30,6 +35,7 @@ import kotlin.math.roundToInt
 @Composable
 fun AddTaskScreen(
     taskToEdit: Task? = null,
+    favouritePlaces: List<FavouritePlace> = emptyList(),
     onSave: (Task) -> Unit,
     onCancel: () -> Unit
 ) {
@@ -43,6 +49,7 @@ fun AddTaskScreen(
     }
     var radius by remember { mutableFloatStateOf(taskToEdit?.radius ?: 100f) }
     var hasLocationPermission by remember { mutableStateOf(false) }
+    var showFavouritePlacesDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -60,7 +67,8 @@ fun AddTaskScreen(
         hasLocationPermission = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
                 permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
 
-        if (hasLocationPermission) {
+        // Only set current location if we're creating a new task (not editing)
+        if (hasLocationPermission && taskToEdit == null) {
             scope.launch {
                 getCurrentLocation(context)?.let { location ->
                     val latLng = LatLng(location.latitude, location.longitude)
@@ -177,6 +185,23 @@ fun AddTaskScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                // Button to choose from favourite places
+                if (favouritePlaces.isNotEmpty()) {
+                    OutlinedButton(
+                        onClick = { showFavouritePlacesDialog = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Place,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Choose from Favourite Places")
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
                 Text(
                     text = "Tap on the map to select a location",
                     style = MaterialTheme.typography.bodySmall,
@@ -229,6 +254,72 @@ fun AddTaskScreen(
                 }
             }
         }
+    }
+
+    // Dialog for choosing favourite place
+    if (showFavouritePlacesDialog) {
+        AlertDialog(
+            onDismissRequest = { showFavouritePlacesDialog = false },
+            title = { Text("Choose Favourite Place") },
+            text = {
+                LazyColumn {
+                    items(favouritePlaces.size) { index ->
+                        val place = favouritePlaces[index]
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable {
+                                    // Apply favourite place data
+                                    address = place.name
+                                    selectedLocation = LatLng(place.latitude, place.longitude)
+                                    radius = place.radius
+                                    isAddressEdited = true
+
+                                    // Move camera to the location
+                                    scope.launch {
+                                        cameraPositionState.animate(
+                                            CameraUpdateFactory.newLatLngZoom(
+                                                LatLng(place.latitude, place.longitude),
+                                                15f
+                                            )
+                                        )
+                                    }
+
+                                    showFavouritePlacesDialog = false
+                                },
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp)
+                            ) {
+                                Text(
+                                    text = place.name,
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                                Text(
+                                    text = place.address,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = "Radius: ${place.radius.toInt()}m",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showFavouritePlacesDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

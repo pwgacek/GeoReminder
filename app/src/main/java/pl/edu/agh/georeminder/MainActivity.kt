@@ -21,32 +21,51 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
+import pl.edu.agh.georeminder.controller.FavouritePlaceViewModel
 import pl.edu.agh.georeminder.controller.TaskViewModel
 import pl.edu.agh.georeminder.location.GeofenceManager
 import pl.edu.agh.georeminder.model.Task
+import pl.edu.agh.georeminder.ui.AddFavouritePlaceScreen
 import pl.edu.agh.georeminder.ui.AddTaskScreen
+import pl.edu.agh.georeminder.ui.FavouritePlacesScreen
 import pl.edu.agh.georeminder.ui.theme.GeoReminderTheme
-import androidx.lifecycle.viewmodel.compose.viewModel
 class MainActivity : ComponentActivity() {
 
     private val geofenceManager by lazy { GeofenceManager(this) }
@@ -108,8 +127,10 @@ class MainActivity : ComponentActivity() {
                 }
 
                 if (permissionsGranted.value && backgroundPermissionGranted.value) {
+                    val favouritePlaceViewModel: FavouritePlaceViewModel = viewModel()
                     MainScreen(
                         viewModel = taskViewModel,
+                        favouritePlaceViewModel = favouritePlaceViewModel,
                         addGeofence = geofenceManager::addGeofenceForTask,
                         removeGeofence = geofenceManager::removeGeofenceForTask,
                     )
@@ -124,124 +145,236 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(
     viewModel: TaskViewModel,
+    favouritePlaceViewModel: FavouritePlaceViewModel,
     addGeofence: (Task) -> Unit,
     removeGeofence: (Task) -> Unit
 ) {
     var showAddTaskScreen by remember { mutableStateOf(false) }
     var taskBeingEdited by remember { mutableStateOf<Task?>(null) }
+    var showFavouritePlacesScreen by remember { mutableStateOf(false) }
+    var showAddFavouritePlaceScreen by remember { mutableStateOf(false) }
+    var placeBeingEdited by remember { mutableStateOf<pl.edu.agh.georeminder.model.FavouritePlace?>(null) }
 
     val tasks by viewModel.tasks.collectAsState()
+    val favouritePlaces by favouritePlaceViewModel.favouritePlaces.collectAsState()
 
     // Add geofences for initial tasks
     LaunchedEffect(tasks) {
         tasks.forEach { addGeofence(it) }
     }
 
-    if (showAddTaskScreen) {
-        AddTaskScreen(
-            taskToEdit = taskBeingEdited,
-            onSave = { newTask ->
-                if (taskBeingEdited == null) {
-                    viewModel.saveTask(
-                        newTask.title,
-                        newTask.address,
-                        newTask.latitude,
-                        newTask.longitude,
-                        newTask.radius
-                    ) { saved ->
-                        addGeofence(saved)
+    when {
+        showAddFavouritePlaceScreen -> {
+            AddFavouritePlaceScreen(
+                placeToEdit = placeBeingEdited,
+                onSave = { place ->
+                    if (placeBeingEdited == null) {
+                        favouritePlaceViewModel.saveFavouritePlace(
+                            place.name,
+                            place.address,
+                            place.latitude,
+                            place.longitude,
+                            place.radius
+                        )
+                    } else {
+                        favouritePlaceViewModel.updateFavouritePlace(place)
                     }
-                } else {
-                    viewModel.updateTask(newTask)
-                    removeGeofence(taskBeingEdited!!)
-                    addGeofence(newTask)
+                    showAddFavouritePlaceScreen = false
+                    placeBeingEdited = null
+                    showFavouritePlacesScreen = true
+                },
+                onCancel = {
+                    showAddFavouritePlaceScreen = false
+                    placeBeingEdited = null
+                    showFavouritePlacesScreen = true
                 }
+            )
+        }
+        showFavouritePlacesScreen -> {
+            FavouritePlacesScreen(
+                viewModel = favouritePlaceViewModel,
+                onBack = { showFavouritePlacesScreen = false },
+                onAddPlace = {
+                    placeBeingEdited = null
+                    showAddFavouritePlaceScreen = true
+                },
+                onEditPlace = { place ->
+                    placeBeingEdited = place
+                    showAddFavouritePlaceScreen = true
+                }
+            )
+        }
+        showAddTaskScreen -> {
+            AddTaskScreen(
+                taskToEdit = taskBeingEdited,
+                favouritePlaces = favouritePlaces,
+                onSave = { newTask ->
+                    if (taskBeingEdited == null) {
+                        viewModel.saveTask(
+                            newTask.title,
+                            newTask.address,
+                            newTask.latitude,
+                            newTask.longitude,
+                            newTask.radius
+                        ) { saved ->
+                            addGeofence(saved)
+                        }
+                    } else {
+                        viewModel.updateTask(newTask)
+                        removeGeofence(taskBeingEdited!!)
+                        addGeofence(newTask)
+                    }
 
-                showAddTaskScreen = false
-                taskBeingEdited = null
-            },
-            onCancel = {
-                showAddTaskScreen = false
-                taskBeingEdited = null
-            }
-        )
-    } else {
-        TaskListScreen(
-            tasks = tasks,
-            onAddTask = {
-                taskBeingEdited = null
-                showAddTaskScreen = true
-            },
-            onTaskClick = { task ->
-                taskBeingEdited = task
-                showAddTaskScreen = true
-            },
-            onDeleteTask = { task ->
-                viewModel.deleteTask(task)
-                removeGeofence(task)
-            }
-        )
+                    showAddTaskScreen = false
+                    taskBeingEdited = null
+                },
+                onCancel = {
+                    showAddTaskScreen = false
+                    taskBeingEdited = null
+                }
+            )
+        }
+        else -> {
+            TaskListScreen(
+                tasks = tasks,
+                onAddTask = {
+                    taskBeingEdited = null
+                    showAddTaskScreen = true
+                },
+                onTaskClick = { task ->
+                    taskBeingEdited = task
+                    showAddTaskScreen = true
+                },
+                onDeleteTask = { task ->
+                    viewModel.deleteTask(task)
+                    removeGeofence(task)
+                },
+                onNavigateToFavouritePlaces = {
+                    showFavouritePlacesScreen = true
+                }
+            )
+        }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TaskListScreen(
     tasks: List<Task>,
     onAddTask: () -> Unit,
     onTaskClick: (Task) -> Unit,
-    onDeleteTask: (Task) -> Unit
+    onDeleteTask: (Task) -> Unit,
+    onNavigateToFavouritePlaces: () -> Unit
 ) {
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onAddTask,
-                containerColor = MaterialTheme.colorScheme.primary
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Add new task"
-                )
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    ModalDrawerSheet(
+                        drawerShape = RoundedCornerShape(
+                            topStart = 16.dp,
+                            topEnd = 0.dp,
+                            bottomStart = 16.dp,
+                            bottomEnd = 0.dp
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = "GeoReminder",
+                                style = MaterialTheme.typography.headlineSmall,
+                                modifier = Modifier.padding(vertical = 16.dp)
+                            )
+                            NavigationDrawerItem(
+                                icon = { Icon(Icons.Default.Favorite, contentDescription = null) },
+                                label = { Text("Favourite Places") },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                    }
+                                    onNavigateToFavouritePlaces()
+                                }
+                            )
+                        }
+                    }
+                }
             }
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(16.dp)
         ) {
-            Text(
-                text = "Welcome to GeoReminder",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    containerColor = MaterialTheme.colorScheme.background,
+                    topBar = {
+                        TopAppBar(
+                            title = { Text("GeoReminder") },
+                            actions = {
+                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Menu,
+                                        contentDescription = "Menu"
+                                    )
+                                }
+                            },
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    },
+                    floatingActionButton = {
+                        FloatingActionButton(
+                            onClick = onAddTask,
+                            containerColor = MaterialTheme.colorScheme.primary
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Add new task"
+                            )
+                        }
+                    }
+                ) { innerPadding ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding)
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Your location-based reminders",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(bottom = 24.dp)
+                        )
 
-            Text(
-                text = "Your location-based reminders",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
-
-            if (tasks.isEmpty()) {
-                Text(
-                    text = "No tasks yet. Tap + to add a new reminder!",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                    modifier = Modifier.padding(top = 32.dp)
-                )
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(bottom = 16.dp)
-                ) {
-                    items(tasks.filter { !it.isCompleted }) { task ->
-                        TaskItem(task = task,
-                            onClick = { onTaskClick(task) },
-                            onDelete = { onDeleteTask(task) })
+                        if (tasks.isEmpty()) {
+                            Text(
+                                text = "No tasks yet. Tap + to add a new reminder!",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                modifier = Modifier.padding(top = 32.dp)
+                            )
+                        } else {
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(bottom = 16.dp)
+                            ) {
+                                items(tasks.filter { !it.isCompleted }) { task ->
+                                    TaskItem(
+                                        task = task,
+                                        onClick = { onTaskClick(task) },
+                                        onDelete = { onDeleteTask(task) }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
