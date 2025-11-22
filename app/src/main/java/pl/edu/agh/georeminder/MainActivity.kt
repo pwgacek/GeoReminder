@@ -33,14 +33,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import pl.edu.agh.georeminder.controller.TaskViewModel
@@ -60,31 +58,56 @@ class MainActivity : ComponentActivity() {
             GeoReminderTheme {
                 val taskViewModel: TaskViewModel = viewModel()
                 val context = LocalContext.current
-                val permissions = arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION,
-                    Manifest.permission.POST_NOTIFICATIONS,
-                    Manifest.permission.ACCESS_BACKGROUND_LOCATION
-                )
-                val permissionsGranted = remember {
-                    mutableStateOf(permissions.all {
-                        ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
-                    })
+
+                // Podstawowe uprawnienia (bez ACCESS_BACKGROUND_LOCATION)
+                val basicPermissions = buildList {
+                    add(Manifest.permission.ACCESS_FINE_LOCATION)
+                    add(Manifest.permission.ACCESS_COARSE_LOCATION)
+                    add(Manifest.permission.POST_NOTIFICATIONS)
+                }.toTypedArray()
+
+                // Sprawdź czy podstawowe uprawnienia są już przyznane
+                val areBasicGranted = basicPermissions.all {
+                    ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
                 }
 
-                val launcher = rememberLauncherForActivityResult(
+                val permissionsGranted = remember { mutableStateOf(areBasicGranted) }
+                val backgroundPermissionGranted = remember { mutableStateOf(false) }
+
+                // Launcher dla dostępu w tle
+                val backgroundLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { isGranted ->
+                    backgroundPermissionGranted.value = isGranted
+                }
+
+                // Launcher dla podstawowych uprawnień
+                val basicLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestMultiplePermissions()
                 ) { permissionsResult ->
                     permissionsGranted.value = permissionsResult.values.all { it }
+                    if (permissionsGranted.value) {
+                        // Po przyznaniu podstawowych, żądaj dostępu w tle
+                        backgroundLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                    }
                 }
 
                 LaunchedEffect(Unit) {
                     if (!permissionsGranted.value) {
-                        launcher.launch(permissions)
+                        basicLauncher.launch(basicPermissions)
+                    } else {
+                        // Jeśli podstawowe są już przyznane, sprawdź i żądaj dostępu w tle
+                        val isBackgroundGranted = ContextCompat.checkSelfPermission(
+                            context, Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                        ) == PackageManager.PERMISSION_GRANTED
+                        backgroundPermissionGranted.value = isBackgroundGranted
+                        if (!isBackgroundGranted) {
+                            backgroundLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                        }
                     }
                 }
 
-                if (permissionsGranted.value) {
+                if (permissionsGranted.value && backgroundPermissionGranted.value) {
                     MainScreen(
                         viewModel = taskViewModel,
                         addGeofence = geofenceManager::addGeofenceForTask,
@@ -271,5 +294,3 @@ fun TaskItem(
         }
     }
 }
-
-
