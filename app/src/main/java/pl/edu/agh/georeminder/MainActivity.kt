@@ -1,6 +1,7 @@
 package pl.edu.agh.georeminder
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -61,6 +62,7 @@ import kotlinx.coroutines.launch
 import pl.edu.agh.georeminder.controller.FavouritePlaceViewModel
 import pl.edu.agh.georeminder.controller.TaskViewModel
 import pl.edu.agh.georeminder.location.GeofenceManager
+import pl.edu.agh.georeminder.location.LocationUpdateService
 import pl.edu.agh.georeminder.model.Task
 import pl.edu.agh.georeminder.ui.AddFavouritePlaceScreen
 import pl.edu.agh.georeminder.ui.AddTaskScreen
@@ -73,6 +75,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val intent = Intent(this, LocationUpdateService::class.java)
+        startService(intent)
         setContent {
             GeoReminderTheme {
                 val taskViewModel: TaskViewModel = viewModel()
