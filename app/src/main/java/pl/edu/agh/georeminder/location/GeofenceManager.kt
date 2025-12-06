@@ -32,7 +32,7 @@ class GeofenceManager(private val context: Context) {
         }
 
         val geofence = Geofence.Builder()
-            .setRequestId(task.title)
+            .setRequestId(task.id.toString())
             .setCircularRegion(
                 task.latitude,
                 task.longitude,
@@ -49,7 +49,7 @@ class GeofenceManager(private val context: Context) {
 
         geofencingClient.addGeofences(geofencingRequest, geofencePendingIntent).run {
             addOnSuccessListener {
-                Log.d(TAG, "Geofence added for task: ${task.title}")
+                Log.d(TAG, "Geofence added for task: ${task.title}, latitude: ${task.latitude}, longitude: ${task.longitude}")
             }
             addOnFailureListener {
                 Log.e(TAG, "Failed to add geofence for task: ${task.title}", it)
@@ -58,7 +58,7 @@ class GeofenceManager(private val context: Context) {
     }
 
     fun removeGeofenceForTask(task: Task) {
-        geofencingClient.removeGeofences(listOf(task.title)).run {
+        geofencingClient.removeGeofences(listOf(task.id.toString())).run {
             addOnSuccessListener {
                 Log.d(TAG, "Geofence removed for task: ${task.title}")
             }

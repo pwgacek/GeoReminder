@@ -10,7 +10,12 @@ import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingEvent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import pl.edu.agh.georeminder.R
+import pl.edu.agh.georeminder.model.AppDatabase
 
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
@@ -28,8 +33,18 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             val triggeringGeofences = geofencingEvent.triggeringGeofences
 
             triggeringGeofences?.forEach { geofence ->
-                val taskDescription = geofence.requestId
-                sendNotification(context, taskDescription)
+                val taskId = geofence.requestId.toLongOrNull() ?: return@forEach
+
+                CoroutineScope(Dispatchers.IO).launch {
+                    val db = AppDatabase.get(context)
+                    val taskDao = db.taskDao()
+                    val task = taskDao.getById(taskId).first()
+
+                    if (task != null && !task.isCompleted) {
+                        taskDao.update(task.copy(isCompleted = true))
+                        sendNotification(context, task.title)
+                    }
+                }
             }
         }
     }
@@ -47,7 +62,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("GeoReminder")
-            .setContentText(taskDescription)
+            .setContentText("Task completed: $taskDescription")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()

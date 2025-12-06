@@ -160,7 +160,7 @@ fun MainScreen(
 
     // Add geofences for initial tasks
     LaunchedEffect(tasks) {
-        tasks.forEach { addGeofence(it) }
+        tasks.filter { !it.isCompleted }.forEach { addGeofence(it) }
     }
 
     when {
