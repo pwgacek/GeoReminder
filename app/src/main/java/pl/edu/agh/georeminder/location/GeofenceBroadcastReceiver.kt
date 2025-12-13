@@ -41,8 +41,11 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                     val task = taskDao.getById(taskId).first()
 
                     if (task != null && !task.isCompleted) {
-                        taskDao.update(task.copy(isCompleted = true))
-                        sendNotification(context, task.title)
+                        val isActive = task.activeAfter == null || System.currentTimeMillis() >= task.activeAfter
+                        if (isActive) {
+                            taskDao.update(task.copy(isCompleted = true))
+                            sendNotification(context, task.title)
+                        }
                     }
                 }
             }

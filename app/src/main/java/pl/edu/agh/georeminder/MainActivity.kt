@@ -219,7 +219,8 @@ fun MainScreen(
                             newTask.address,
                             newTask.latitude,
                             newTask.longitude,
-                            newTask.radius
+                            newTask.radius,
+                            newTask.activeAfter
                         ) { saved ->
                             addGeofence(saved)
                         }
@@ -231,6 +232,14 @@ fun MainScreen(
 
                     showAddTaskScreen = false
                     taskBeingEdited = null
+                },
+                onDelete = taskBeingEdited?.let { task ->
+                    {
+                        viewModel.deleteTask(task)
+                        removeGeofence(task)
+                        showAddTaskScreen = false
+                        taskBeingEdited = null
+                    }
                 },
                 onCancel = {
                     showAddTaskScreen = false
@@ -249,10 +258,6 @@ fun MainScreen(
                     taskBeingEdited = task
                     showAddTaskScreen = true
                 },
-                onDeleteTask = { task ->
-                    viewModel.deleteTask(task)
-                    removeGeofence(task)
-                },
                 onNavigateToFavouritePlaces = {
                     showFavouritePlacesScreen = true
                 }
@@ -267,7 +272,6 @@ fun TaskListScreen(
     tasks: List<Task>,
     onAddTask: () -> Unit,
     onTaskClick: (Task) -> Unit,
-    onDeleteTask: (Task) -> Unit,
     onNavigateToFavouritePlaces: () -> Unit
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -373,8 +377,7 @@ fun TaskListScreen(
                                 items(tasks.filter { !it.isCompleted }) { task ->
                                     TaskItem(
                                         task = task,
-                                        onClick = { onTaskClick(task) },
-                                        onDelete = { onDeleteTask(task) }
+                                        onClick = { onTaskClick(task) }
                                     )
                                 }
                             }
@@ -390,8 +393,7 @@ fun TaskListScreen(
 fun TaskItem(
     task: Task,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
+    onClick: () -> Unit
 ) {
     Card(
         modifier = modifier
@@ -402,31 +404,39 @@ fun TaskItem(
             containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween, // title/address left, button right
-            verticalAlignment = Alignment.CenterVertically
+                .padding(16.dp)
         ) {
-            Column(
-                modifier = Modifier.weight(1f) // take available space
-            ) {
+            Text(
+                text = task.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = task.address,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            val activeAfterTimestamp = task.activeAfter
+            val isActiveNow = activeAfterTimestamp == null || System.currentTimeMillis() >= activeAfterTimestamp
+            if (isActiveNow) {
                 Text(
-                    text = task.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = task.address,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    text = "Active",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
                     modifier = Modifier.padding(top = 4.dp)
                 )
-            }
-
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete")
+            } else {
+                val formatter = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
+                Text(
+                    text = "Active after: ${formatter.format(java.util.Date(activeAfterTimestamp))}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
         }
     }

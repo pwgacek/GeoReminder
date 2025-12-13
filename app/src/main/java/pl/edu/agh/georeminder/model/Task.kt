@@ -11,5 +11,6 @@ data class Task(
     val latitude: Double,
     val longitude: Double,
     val radius: Float = 100f, // Radius in meters
-    val isCompleted: Boolean = false
+    val isCompleted: Boolean = false,
+    val activeAfter: Long? = null
 )

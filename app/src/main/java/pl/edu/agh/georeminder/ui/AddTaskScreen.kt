@@ -12,7 +12,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,6 +32,10 @@ import kotlinx.coroutines.tasks.await
 import pl.edu.agh.georeminder.model.FavouritePlace
 import pl.edu.agh.georeminder.model.Task
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,6 +44,7 @@ fun AddTaskScreen(
     taskToEdit: Task? = null,
     favouritePlaces: List<FavouritePlace> = emptyList(),
     onSave: (Task) -> Unit,
+    onDelete: (() -> Unit)? = null,
     onCancel: () -> Unit
 ) {
     var title by remember { mutableStateOf(taskToEdit?.title ?: "") }
@@ -50,6 +58,12 @@ fun AddTaskScreen(
     var radius by remember { mutableFloatStateOf(taskToEdit?.radius ?: 100f) }
     var hasLocationPermission by remember { mutableStateOf(false) }
     var showFavouritePlacesDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+
+    var activeAfter by remember { mutableStateOf(taskToEdit?.activeAfter) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+    var selectedDate by remember { mutableStateOf<Long?>(null) }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -114,6 +128,15 @@ fun AddTaskScreen(
                     }
                 },
                 actions = {
+                    if (onDelete != null) {
+                        IconButton(onClick = { showDeleteConfirmDialog = true }) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Delete",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
                     IconButton(
                         onClick = {
                             if (title.isNotBlank() && selectedLocation != null) {
@@ -124,7 +147,8 @@ fun AddTaskScreen(
                                         address = address.ifBlank { "Location selected" },
                                         latitude = selectedLocation!!.latitude,
                                         longitude = selectedLocation!!.longitude,
-                                        radius = radius
+                                        radius = radius,
+                                        activeAfter = activeAfter
                                     )
                                 )
                             }
@@ -182,6 +206,47 @@ fun AddTaskScreen(
                     valueRange = 50f..500f,
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Active after (optional):",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = activeAfter?.let { dateFormatter.format(Date(it)) } ?: "Always active",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (activeAfter != null) MaterialTheme.colorScheme.primary 
+                                   else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    Row {
+                        IconButton(onClick = { showDatePicker = true }) {
+                            Icon(
+                                Icons.Default.Schedule,
+                                contentDescription = "Set active time",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        if (activeAfter != null) {
+                            IconButton(onClick = { activeAfter = null }) {
+                                Icon(
+                                    Icons.Default.Clear,
+                                    contentDescription = "Clear time",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -316,6 +381,110 @@ fun AddTaskScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showFavouritePlacesDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = activeAfter ?: System.currentTimeMillis()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            selectedDate = millis
+                            showDatePicker = false
+                            showTimePicker = true
+                        }
+                    }
+                ) {
+                    Text("Next")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (showTimePicker) {
+        val calendar = Calendar.getInstance()
+        activeAfter?.let { calendar.timeInMillis = it }
+        val timePickerState = rememberTimePickerState(
+            initialHour = calendar.get(Calendar.HOUR_OF_DAY),
+            initialMinute = calendar.get(Calendar.MINUTE)
+        )
+        
+        AlertDialog(
+            onDismissRequest = { showTimePicker = false },
+            title = { Text("Select Time") },
+            text = {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    TimePicker(state = timePickerState)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        selectedDate?.let { dateMillis ->
+                            val cal = Calendar.getInstance()
+                            cal.timeInMillis = dateMillis
+                            cal.set(Calendar.HOUR_OF_DAY, timePickerState.hour)
+                            cal.set(Calendar.MINUTE, timePickerState.minute)
+                            cal.set(Calendar.SECOND, 0)
+                            cal.set(Calendar.MILLISECOND, 0)
+                            activeAfter = cal.timeInMillis
+                        }
+                        showTimePicker = false
+                        selectedDate = null
+                    }
+                ) {
+                    Text("Confirm")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { 
+                    showTimePicker = false
+                    selectedDate = null
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = { Text("Delete Task") },
+            text = { Text("Are you sure you want to delete this task? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        onDelete?.invoke()
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
                     Text("Cancel")
                 }
             }

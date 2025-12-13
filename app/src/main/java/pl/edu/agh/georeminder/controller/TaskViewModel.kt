@@ -26,6 +26,7 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
         latitude: Double,
         longitude: Double,
         radius: Float = 100f,
+        activeAfter: Long? = null,
         onSaved: (Task) -> Unit = {}
     ) {
         val rec = Task(
@@ -35,7 +36,8 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
             latitude = latitude,
             longitude = longitude,
             radius = radius,
-            isCompleted = false
+            isCompleted = false,
+            activeAfter = activeAfter
         )
 
         viewModelScope.launch {
