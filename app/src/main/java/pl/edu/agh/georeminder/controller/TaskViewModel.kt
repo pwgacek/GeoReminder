@@ -20,6 +20,9 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
     val tasks = repo.getAll()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    val completedTasks = repo.getCompletedTasks()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
     fun saveTask(
         title: String,
         address: String,

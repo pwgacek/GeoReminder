@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Menu
@@ -67,6 +68,8 @@ import pl.edu.agh.georeminder.model.Task
 import pl.edu.agh.georeminder.ui.AddFavouritePlaceScreen
 import pl.edu.agh.georeminder.ui.AddTaskScreen
 import pl.edu.agh.georeminder.ui.FavouritePlacesScreen
+import pl.edu.agh.georeminder.ui.TaskHistoryScreen
+import pl.edu.agh.georeminder.ui.TaskItem
 import pl.edu.agh.georeminder.ui.theme.GeoReminderTheme
 class MainActivity : ComponentActivity() {
 
@@ -157,6 +160,7 @@ fun MainScreen(
     var taskBeingEdited by remember { mutableStateOf<Task?>(null) }
     var showFavouritePlacesScreen by remember { mutableStateOf(false) }
     var showAddFavouritePlaceScreen by remember { mutableStateOf(false) }
+    var showTaskHistoryScreen by remember { mutableStateOf(false) }
     var placeBeingEdited by remember { mutableStateOf<pl.edu.agh.georeminder.model.FavouritePlace?>(null) }
 
     val tasks by viewModel.tasks.collectAsState()
@@ -216,6 +220,12 @@ fun MainScreen(
                 }
             )
         }
+        showTaskHistoryScreen -> {
+            TaskHistoryScreen(
+                viewModel = viewModel,
+                onBack = { showTaskHistoryScreen = false }
+            )
+        }
         showAddTaskScreen -> {
             AddTaskScreen(
                 taskToEdit = taskBeingEdited,
@@ -268,6 +278,9 @@ fun MainScreen(
                 },
                 onNavigateToFavouritePlaces = {
                     showFavouritePlacesScreen = true
+                },
+                onNavigateToTaskHistory = {
+                    showTaskHistoryScreen = true
                 }
             )
         }
@@ -280,7 +293,8 @@ fun TaskListScreen(
     tasks: List<Task>,
     onAddTask: () -> Unit,
     onTaskClick: (Task) -> Unit,
-    onNavigateToFavouritePlaces: () -> Unit
+    onNavigateToFavouritePlaces: () -> Unit,
+    onNavigateToTaskHistory: () -> Unit
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -317,6 +331,17 @@ fun TaskListScreen(
                                         drawerState.close()
                                     }
                                     onNavigateToFavouritePlaces()
+                                }
+                            )
+                            NavigationDrawerItem(
+                                icon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
+                                label = { Text("Task History") },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                    }
+                                    onNavigateToTaskHistory()
                                 }
                             )
                         }
@@ -397,55 +422,3 @@ fun TaskListScreen(
     }
 }
 
-@Composable
-fun TaskItem(
-    task: Task,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Text(
-                text = task.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = task.address,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                modifier = Modifier.padding(top = 4.dp)
-            )
-            val activeAfterTimestamp = task.activeAfter
-            val isActiveNow = activeAfterTimestamp == null || System.currentTimeMillis() >= activeAfterTimestamp
-            if (isActiveNow) {
-                Text(
-                    text = "Active",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            } else {
-                val formatter = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
-                Text(
-                    text = "Active after: ${formatter.format(java.util.Date(activeAfterTimestamp))}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-        }
-    }
-}

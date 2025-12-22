@@ -13,6 +13,9 @@ interface TaskDao {
     @Query("SELECT * FROM Task")
     fun getAll(): Flow<List<Task>>
 
+    @Query("SELECT * FROM Task WHERE isCompleted = 1 ORDER BY id DESC")
+    fun getCompletedTasks(): Flow<List<Task>>
+
     @Query("SELECT * FROM Task WHERE id = :id")
     fun getById(id: Long): Flow<Task?>
 

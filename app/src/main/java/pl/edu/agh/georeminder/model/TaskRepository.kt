@@ -6,6 +6,8 @@ class TaskRepository(private val dao: TaskDao) {
 
     fun getAll(): Flow<List<Task>> = dao.getAll()
 
+    fun getCompletedTasks(): Flow<List<Task>> = dao.getCompletedTasks()
+
     fun getById(id: Long): Flow<Task?> = dao.getById(id)
 
     suspend fun insert(task: Task) {
