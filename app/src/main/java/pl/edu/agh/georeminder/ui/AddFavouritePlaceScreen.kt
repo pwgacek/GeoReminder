@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +25,7 @@ import kotlin.math.roundToInt
 fun AddFavouritePlaceScreen(
     placeToEdit: FavouritePlace? = null,
     onSave: (FavouritePlace) -> Unit,
+    onDelete: (() -> Unit)? = null,
     onCancel: () -> Unit
 ) {
     var name by remember { mutableStateOf(placeToEdit?.name ?: "") }
@@ -34,6 +36,7 @@ fun AddFavouritePlaceScreen(
         )
     }
     var radius by remember { mutableFloatStateOf(placeToEdit?.radius ?: 100f) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
 
@@ -77,6 +80,15 @@ fun AddFavouritePlaceScreen(
                     }
                 },
                 actions = {
+                    if (onDelete != null) {
+                        IconButton(onClick = { showDeleteConfirmDialog = true }) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Delete",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
                     IconButton(
                         onClick = {
                             selectedLocation?.let { location ->
@@ -183,6 +195,32 @@ fun AddFavouritePlaceScreen(
                 }
             }
         }
+    }
+
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = { Text("Delete Favourite Place") },
+            text = { Text("Are you sure you want to delete this favourite place? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        onDelete?.invoke()
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

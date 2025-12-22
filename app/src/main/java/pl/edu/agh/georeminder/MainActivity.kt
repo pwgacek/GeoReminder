@@ -187,6 +187,14 @@ fun MainScreen(
                     placeBeingEdited = null
                     showFavouritePlacesScreen = true
                 },
+                onDelete = placeBeingEdited?.let { place ->
+                    {
+                        favouritePlaceViewModel.deleteFavouritePlace(place)
+                        showAddFavouritePlaceScreen = false
+                        placeBeingEdited = null
+                        showFavouritePlacesScreen = true
+                    }
+                },
                 onCancel = {
                     showAddFavouritePlaceScreen = false
                     placeBeingEdited = null
