@@ -230,12 +230,18 @@ fun MainScreen(
                 onSave = { newTask ->
                     if (taskBeingEdited == null) {
                         viewModel.saveTask(
-                            newTask.title,
-                            newTask.address,
-                            newTask.latitude,
-                            newTask.longitude,
-                            newTask.radius,
-                            newTask.activeAfter
+                            title = newTask.title,
+                            address = newTask.address,
+                            latitude = newTask.latitude,
+                            longitude = newTask.longitude,
+                            radius = newTask.radius,
+                            activeAfter = newTask.activeAfter,
+                            repeatType = newTask.repeatType,
+                            repeatInterval = newTask.repeatInterval,
+                            repeatDaysOfWeek = newTask.repeatDaysOfWeek,
+                            timeWindowStart = newTask.timeWindowStart,
+                            timeWindowEnd = newTask.timeWindowEnd,
+                            maxActivations = newTask.maxActivations
                         ) { saved ->
                             addGeofence(saved)
                         }

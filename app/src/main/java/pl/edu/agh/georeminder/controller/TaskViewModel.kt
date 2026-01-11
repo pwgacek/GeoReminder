@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import pl.edu.agh.georeminder.model.AppDatabase
 import pl.edu.agh.georeminder.model.TaskRepository
 import pl.edu.agh.georeminder.model.Task
+import pl.edu.agh.georeminder.model.RepeatType
 
 class TaskViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -22,6 +23,9 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
 
     val completedTasks = repo.getCompletedTasks()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+        
+    val activeTasks = repo.getActiveTasks()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     fun saveTask(
         title: String,
@@ -30,6 +34,12 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
         longitude: Double,
         radius: Float = 100f,
         activeAfter: Long? = null,
+        repeatType: RepeatType = RepeatType.NONE,
+        repeatInterval: Int = 1,
+        repeatDaysOfWeek: String = "",
+        timeWindowStart: Int? = null,
+        timeWindowEnd: Int? = null,
+        maxActivations: Int? = null,
         onSaved: (Task) -> Unit = {}
     ) {
         val rec = Task(
@@ -40,7 +50,15 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
             longitude = longitude,
             radius = radius,
             isCompleted = false,
-            activeAfter = activeAfter
+            activeAfter = activeAfter,
+            repeatType = repeatType,
+            repeatInterval = repeatInterval,
+            repeatDaysOfWeek = repeatDaysOfWeek,
+            timeWindowStart = timeWindowStart,
+            timeWindowEnd = timeWindowEnd,
+            maxActivations = maxActivations,
+            currentActivations = 0,
+            lastActivatedDate = null
         )
 
         viewModelScope.launch {
@@ -59,6 +77,14 @@ class TaskViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearAll() = viewModelScope.launch {
         repo.clear()
+    }
+    
+    fun resetTaskActivations(task: Task) = viewModelScope.launch {
+        repo.update(task.copy(
+            currentActivations = 0,
+            isCompleted = false,
+            lastActivatedDate = null
+        ))
     }
 }
 

@@ -9,6 +9,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -16,6 +18,8 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,6 +35,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import pl.edu.agh.georeminder.model.FavouritePlace
 import pl.edu.agh.georeminder.model.Task
+import pl.edu.agh.georeminder.model.RepeatType
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -64,6 +69,38 @@ fun AddTaskScreen(
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf<Long?>(null) }
+    
+    // New repeat and scheduling options
+    var repeatType by remember { mutableStateOf(taskToEdit?.repeatType ?: RepeatType.NONE) }
+    var repeatInterval by remember { mutableIntStateOf(taskToEdit?.repeatInterval ?: 2) }
+    var selectedDaysOfWeek by remember { 
+        mutableStateOf(taskToEdit?.getActiveDays()?.toSet() ?: emptySet<Int>()) 
+    }
+    var timeWindowStart by remember { mutableStateOf(taskToEdit?.timeWindowStart) }
+    var timeWindowEnd by remember { mutableStateOf(taskToEdit?.timeWindowEnd) }
+    var maxActivations by remember { mutableStateOf(taskToEdit?.maxActivations) }
+    var showTimeWindowStartPicker by remember { mutableStateOf(false) }
+    var showTimeWindowEndPicker by remember { mutableStateOf(false) }
+    var showAdvancedOptions by remember { mutableStateOf(
+        taskToEdit?.let { 
+            it.repeatType != RepeatType.NONE || it.timeWindowStart != null || it.maxActivations != null 
+        } ?: false
+    ) }
+    
+    // Determine if starting date is required:
+    // Required when:
+    // - EVERY_N_DAYS with maxActivations: Need reference point to count limited occurrences
+    // - DAILY with maxActivations: Required to know when to stop
+    // - WEEKLY with maxActivations: Required to count from a specific point
+    // Not required for infinite repeating tasks (today is used as implicit start)
+    val isStartingDateRequired = remember(repeatType, maxActivations) {
+        maxActivations != null && repeatType != RepeatType.NONE
+    }
+    
+    // Validation: check if starting date is set when required
+    val isStartingDateValid = remember(isStartingDateRequired, activeAfter) {
+        !isStartingDateRequired || activeAfter != null
+    }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -139,7 +176,7 @@ fun AddTaskScreen(
                     }
                     IconButton(
                         onClick = {
-                            if (title.isNotBlank() && selectedLocation != null) {
+                            if (title.isNotBlank() && selectedLocation != null && isStartingDateValid) {
                                 onSave(
                                     Task(
                                         id = taskToEdit?.id ?: System.currentTimeMillis(),
@@ -148,12 +185,21 @@ fun AddTaskScreen(
                                         latitude = selectedLocation!!.latitude,
                                         longitude = selectedLocation!!.longitude,
                                         radius = radius,
-                                        activeAfter = activeAfter
+                                        activeAfter = activeAfter,
+                                        repeatType = repeatType,
+                                        repeatInterval = repeatInterval,
+                                        repeatDaysOfWeek = selectedDaysOfWeek.sorted().joinToString(","),
+                                        timeWindowStart = timeWindowStart,
+                                        timeWindowEnd = timeWindowEnd,
+                                        maxActivations = maxActivations,
+                                        currentActivations = taskToEdit?.currentActivations ?: 0,
+                                        lastActivatedDate = taskToEdit?.lastActivatedDate,
+                                        isCompleted = taskToEdit?.isCompleted ?: false
                                     )
                                 )
                             }
                         },
-                        enabled = title.isNotBlank() && selectedLocation != null
+                        enabled = title.isNotBlank() && selectedLocation != null && isStartingDateValid
                     ) {
                         Icon(Icons.Default.Check, contentDescription = "Save")
                     }
@@ -218,22 +264,37 @@ fun AddTaskScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Active after (optional):",
-                            style = MaterialTheme.typography.bodyMedium
+                            text = if (isStartingDateRequired) "Starting date (required):" else "Active after (optional):",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (isStartingDateRequired && activeAfter == null) 
+                                MaterialTheme.colorScheme.error 
+                            else 
+                                MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             text = activeAfter?.let { dateFormatter.format(Date(it)) } ?: "Always active",
                             style = MaterialTheme.typography.bodySmall,
                             color = if (activeAfter != null) MaterialTheme.colorScheme.primary 
+                                   else if (isStartingDateRequired) MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
+                        if (isStartingDateRequired && activeAfter == null) {
+                            Text(
+                                text = "⚠ Starting date is required when activation limit is set",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                     Row {
                         IconButton(onClick = { showDatePicker = true }) {
                             Icon(
                                 Icons.Default.Schedule,
                                 contentDescription = "Set active time",
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = if (isStartingDateRequired && activeAfter == null) 
+                                    MaterialTheme.colorScheme.error 
+                                else 
+                                    MaterialTheme.colorScheme.primary
                             )
                         }
                         if (activeAfter != null) {
@@ -266,6 +327,262 @@ fun AddTaskScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
+                
+                // Advanced Scheduling Options Toggle
+                OutlinedButton(
+                    onClick = { showAdvancedOptions = !showAdvancedOptions },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = if (showAdvancedOptions) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (showAdvancedOptions) "Hide Scheduling Options" else "Show Scheduling Options")
+                }
+                
+                // Advanced Options Section
+                if (showAdvancedOptions) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    HorizontalDivider()
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = "Repeat Settings",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Repeat Type Selection
+                    var repeatTypeExpanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(
+                        expanded = repeatTypeExpanded,
+                        onExpandedChange = { repeatTypeExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = when (repeatType) {
+                                RepeatType.NONE -> "No repeat (one-time)"
+                                RepeatType.DAILY -> "Daily"
+                                RepeatType.EVERY_N_DAYS -> "Every $repeatInterval days"
+                                RepeatType.WEEKLY -> "Weekly (specific days)"
+                            },
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Repeat") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = repeatTypeExpanded) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = repeatTypeExpanded,
+                            onDismissRequest = { repeatTypeExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("No repeat (one-time)") },
+                                onClick = {
+                                    repeatType = RepeatType.NONE
+                                    maxActivations = null // Clear activation limit for non-repeating
+                                    repeatTypeExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Daily") },
+                                onClick = {
+                                    repeatType = RepeatType.DAILY
+                                    repeatTypeExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Every N days") },
+                                onClick = {
+                                    repeatType = RepeatType.EVERY_N_DAYS
+                                    repeatTypeExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Weekly (specific days)") },
+                                onClick = {
+                                    repeatType = RepeatType.WEEKLY
+                                    repeatTypeExpanded = false
+                                }
+                            )
+                        }
+                    }
+                    
+                    // Interval for EVERY_N_DAYS
+                    if (repeatType == RepeatType.EVERY_N_DAYS) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Every", modifier = Modifier.padding(end = 8.dp))
+                            OutlinedTextField(
+                                value = repeatInterval.toString(),
+                                onValueChange = { value ->
+                                    value.toIntOrNull()?.let { 
+                                        if (it in 1..365) repeatInterval = it 
+                                    }
+                                },
+                                modifier = Modifier.width(80.dp),
+                                singleLine = true
+                            )
+                            Text(" days", modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                    
+                    // Day selection for WEEKLY
+                    if (repeatType == RepeatType.WEEKLY) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Active on days:",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            val days = listOf("M" to 1, "T" to 2, "W" to 3, "T" to 4, "F" to 5, "S" to 6, "S" to 7)
+                            days.forEach { (label, dayNum) ->
+                                FilterChip(
+                                    selected = selectedDaysOfWeek.contains(dayNum),
+                                    onClick = {
+                                        selectedDaysOfWeek = if (selectedDaysOfWeek.contains(dayNum)) {
+                                            selectedDaysOfWeek - dayNum
+                                        } else {
+                                            selectedDaysOfWeek + dayNum
+                                        }
+                                    },
+                                    label = { Text(label) },
+                                    modifier = Modifier.size(40.dp)
+                                )
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = "Time Window",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = "Task only triggers if visited during this time window",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Start time
+                        OutlinedButton(
+                            onClick = { showTimeWindowStartPicker = true },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = timeWindowStart?.let { formatMinutesToTime(it) } ?: "Start time"
+                            )
+                        }
+                        
+                        Text(" - ", modifier = Modifier.padding(horizontal = 8.dp))
+                        
+                        // End time
+                        OutlinedButton(
+                            onClick = { showTimeWindowEndPicker = true },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = timeWindowEnd?.let { formatMinutesToTime(it) } ?: "End time"
+                            )
+                        }
+                        
+                        if (timeWindowStart != null || timeWindowEnd != null) {
+                            IconButton(onClick = { 
+                                timeWindowStart = null
+                                timeWindowEnd = null
+                            }) {
+                                Icon(
+                                    Icons.Default.Clear,
+                                    contentDescription = "Clear time window",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                    
+                    // Activation Limit - only show for repeating tasks
+                    if (repeatType != RepeatType.NONE) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Text(
+                            text = "Activation Limit",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = maxActivations != null,
+                                onCheckedChange = { checked ->
+                                    maxActivations = if (checked) 3 else null
+                                }
+                            )
+                            Text("Limit activations", modifier = Modifier.padding(end = 16.dp))
+                            
+                            if (maxActivations != null) {
+                                OutlinedTextField(
+                                    value = maxActivations?.toString() ?: "",
+                                    onValueChange = { value ->
+                                        value.toIntOrNull()?.let { 
+                                            if (it in 1..999) maxActivations = it 
+                                        }
+                                    },
+                                    modifier = Modifier.width(80.dp),
+                                    singleLine = true,
+                                    label = { Text("Max") }
+                                )
+                                Text(" times", modifier = Modifier.padding(start = 8.dp))
+                            }
+                        }
+                        
+                        // Show current activation count if editing
+                        if (taskToEdit != null && taskToEdit.currentActivations > 0) {
+                            Text(
+                                text = "Already triggered ${taskToEdit.currentActivations} time(s)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                modifier = Modifier.padding(start = 48.dp, top = 4.dp)
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    HorizontalDivider()
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = "Tap on the map to select a location",
@@ -490,6 +807,78 @@ fun AddTaskScreen(
             }
         )
     }
+    
+    // Time Window Start Picker
+    if (showTimeWindowStartPicker) {
+        val timePickerState = rememberTimePickerState(
+            initialHour = timeWindowStart?.div(60) ?: 9,
+            initialMinute = timeWindowStart?.rem(60) ?: 0
+        )
+        
+        AlertDialog(
+            onDismissRequest = { showTimeWindowStartPicker = false },
+            title = { Text("Select Start Time") },
+            text = {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    TimePicker(state = timePickerState)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        timeWindowStart = timePickerState.hour * 60 + timePickerState.minute
+                        showTimeWindowStartPicker = false
+                    }
+                ) {
+                    Text("Confirm")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimeWindowStartPicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+    
+    // Time Window End Picker
+    if (showTimeWindowEndPicker) {
+        val timePickerState = rememberTimePickerState(
+            initialHour = timeWindowEnd?.div(60) ?: 17,
+            initialMinute = timeWindowEnd?.rem(60) ?: 0
+        )
+        
+        AlertDialog(
+            onDismissRequest = { showTimeWindowEndPicker = false },
+            title = { Text("Select End Time") },
+            text = {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    TimePicker(state = timePickerState)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        timeWindowEnd = timePickerState.hour * 60 + timePickerState.minute
+                        showTimeWindowEndPicker = false
+                    }
+                ) {
+                    Text("Confirm")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimeWindowEndPicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 private suspend fun getCurrentLocation(context: Context): Location? {
@@ -531,5 +920,14 @@ private fun getAddressFromLocation(context: Context, latLng: LatLng): String? {
     } catch (e: IllegalArgumentException) {
         null
     }
+}
+
+/**
+ * Formats minutes from midnight to a readable time string (e.g., 840 -> "14:00")
+ */
+private fun formatMinutesToTime(minutes: Int): String {
+    val hours = minutes / 60
+    val mins = minutes % 60
+    return String.format(Locale.getDefault(), "%02d:%02d", hours, mins)
 }
 

@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [Task::class, FavouritePlace::class], version = 3)
+@Database(entities = [Task::class, FavouritePlace::class], version = 4)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun favouritePlaceDao(): FavouritePlaceDao
