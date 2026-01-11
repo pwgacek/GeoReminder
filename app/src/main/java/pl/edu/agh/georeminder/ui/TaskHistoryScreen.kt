@@ -42,7 +42,7 @@ fun TaskHistoryScreen(
                     }
                 },
                 actions = {
-                    // Empty spacer to balance the back button and center the title
+                    
                     Spacer(modifier = Modifier.width(48.dp))
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -82,7 +82,7 @@ fun TaskHistoryScreen(
         }
     }
 
-    // Restore dialog
+    
     taskToRestore?.let { task ->
         AlertDialog(
             onDismissRequest = { taskToRestore = null },

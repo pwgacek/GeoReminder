@@ -81,14 +81,14 @@ class MainActivity : ComponentActivity() {
                 val taskViewModel: TaskViewModel = viewModel()
                 val context = LocalContext.current
 
-                // Podstawowe uprawnienia (bez ACCESS_BACKGROUND_LOCATION)
+                
                 val basicPermissions = buildList {
                     add(Manifest.permission.ACCESS_FINE_LOCATION)
                     add(Manifest.permission.ACCESS_COARSE_LOCATION)
                     add(Manifest.permission.POST_NOTIFICATIONS)
                 }.toTypedArray()
 
-                // Sprawdź czy podstawowe uprawnienia są już przyznane
+                
                 val areBasicGranted = basicPermissions.all {
                     ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
                 }
@@ -96,20 +96,20 @@ class MainActivity : ComponentActivity() {
                 val permissionsGranted = remember { mutableStateOf(areBasicGranted) }
                 val backgroundPermissionGranted = remember { mutableStateOf(false) }
 
-                // Launcher dla dostępu w tle
+                
                 val backgroundLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission()
                 ) { isGranted ->
                     backgroundPermissionGranted.value = isGranted
                 }
 
-                // Launcher dla podstawowych uprawnień
+                
                 val basicLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestMultiplePermissions()
                 ) { permissionsResult ->
                     permissionsGranted.value = permissionsResult.values.all { it }
                     if (permissionsGranted.value) {
-                        // Po przyznaniu podstawowych, żądaj dostępu w tle
+                        
                         backgroundLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
                     }
                 }
@@ -118,7 +118,7 @@ class MainActivity : ComponentActivity() {
                     if (!permissionsGranted.value) {
                         basicLauncher.launch(basicPermissions)
                     } else {
-                        // Jeśli podstawowe są już przyznane, sprawdź i żądaj dostępu w tle
+                        
                         val isBackgroundGranted = ContextCompat.checkSelfPermission(
                             context, Manifest.permission.ACCESS_BACKGROUND_LOCATION
                         ) == PackageManager.PERMISSION_GRANTED
@@ -163,7 +163,7 @@ fun MainScreen(
     val tasks by viewModel.tasks.collectAsState()
     val favouritePlaces by favouritePlaceViewModel.favouritePlaces.collectAsState()
 
-    // Add geofences for initial tasks
+    
     LaunchedEffect(tasks) {
         tasks.filter { !it.isCompleted }.forEach { addGeofence(it) }
     }

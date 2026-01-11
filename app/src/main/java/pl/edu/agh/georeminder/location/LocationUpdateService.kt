@@ -45,8 +45,8 @@ class LocationUpdateService : Service() {
 
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
-                // Not needed to do anything here.
-                // The presence of the location request is enough
+                
+                
             }
         }
 

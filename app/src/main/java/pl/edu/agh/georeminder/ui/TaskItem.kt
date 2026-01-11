@@ -43,7 +43,7 @@ fun TaskItem(
                 modifier = Modifier.padding(top = 4.dp)
             )
             
-            // Show repeat info
+            
             if (task.repeatType != RepeatType.NONE) {
                 val repeatText = when (task.repeatType) {
                     RepeatType.DAILY -> "Repeats daily"
@@ -74,7 +74,7 @@ fun TaskItem(
                 )
             }
             
-            // Show time window if set
+            
             if (task.timeWindowStart != null && task.timeWindowEnd != null) {
                 Text(
                     text = "Active ${formatMinutesToTime(task.timeWindowStart)} - ${formatMinutesToTime(task.timeWindowEnd)}",
@@ -84,7 +84,7 @@ fun TaskItem(
                 )
             }
             
-            // Show activation count if limited
+            
             if (task.maxActivations != null) {
                 Text(
                     text = "Activations: ${task.currentActivations}/${task.maxActivations}",
@@ -131,9 +131,7 @@ fun TaskItem(
     }
 }
 
-/**
- * Formats minutes from midnight to a readable time string (e.g., 840 -> "14:00")
- */
+
 private fun formatMinutesToTime(minutes: Int): String {
     val hours = minutes / 60
     val mins = minutes % 60

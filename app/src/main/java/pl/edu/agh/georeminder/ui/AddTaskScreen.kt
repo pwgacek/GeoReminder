@@ -70,7 +70,7 @@ fun AddTaskScreen(
     var showTimePicker by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf<Long?>(null) }
     
-    // New repeat and scheduling options
+    
     var repeatType by remember { mutableStateOf(taskToEdit?.repeatType ?: RepeatType.NONE) }
     var repeatInterval by remember { mutableIntStateOf(taskToEdit?.repeatInterval ?: 2) }
     var selectedDaysOfWeek by remember { 
@@ -87,17 +87,17 @@ fun AddTaskScreen(
         } ?: false
     ) }
     
-    // Determine if starting date is required:
-    // Required when:
-    // - EVERY_N_DAYS with maxActivations: Need reference point to count limited occurrences
-    // - DAILY with maxActivations: Required to know when to stop
-    // - WEEKLY with maxActivations: Required to count from a specific point
-    // Not required for infinite repeating tasks (today is used as implicit start)
+    
+    
+    
+    
+    
+    
     val isStartingDateRequired = remember(repeatType, maxActivations) {
         maxActivations != null && repeatType != RepeatType.NONE
     }
     
-    // Validation: check if starting date is set when required
+    
     val isStartingDateValid = remember(isStartingDateRequired, activeAfter) {
         !isStartingDateRequired || activeAfter != null
     }
@@ -105,20 +105,20 @@ fun AddTaskScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // Default location (Krakow, Poland)
+    
     val defaultLocation = LatLng(50.0647, 19.9450)
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(selectedLocation ?: defaultLocation, 15f)
     }
 
-    // Location permission launcher
+    
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         hasLocationPermission = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
                 permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
 
-        // Only set current location if we're creating a new task (not editing)
+        
         if (hasLocationPermission && taskToEdit == null) {
             scope.launch {
                 getCurrentLocation(context)?.let { location ->
@@ -140,7 +140,7 @@ fun AddTaskScreen(
     }
 
     LaunchedEffect(selectedLocation) {
-        if (!isAddressEdited) { // only auto-update if allowed
+        if (!isAddressEdited) { 
             selectedLocation?.let { location ->
                 val geocodedAddress = getAddressFromLocation(context, location)
                 if (!geocodedAddress.isNullOrBlank()) {
@@ -212,7 +212,7 @@ fun AddTaskScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Input fields
+            
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -232,7 +232,7 @@ fun AddTaskScreen(
                     value = address,
                     onValueChange = {
                         address = it
-                        isAddressEdited = true // user manually typed
+                        isAddressEdited = true 
                     },
                     label = { Text("Address") },
                     modifier = Modifier.fillMaxWidth(),
@@ -311,7 +311,7 @@ fun AddTaskScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Button to choose from favourite places
+                
                 if (favouritePlaces.isNotEmpty()) {
                     OutlinedButton(
                         onClick = { showFavouritePlacesDialog = true },
@@ -328,7 +328,7 @@ fun AddTaskScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
                 
-                // Advanced Scheduling Options Toggle
+                
                 OutlinedButton(
                     onClick = { showAdvancedOptions = !showAdvancedOptions },
                     modifier = Modifier.fillMaxWidth()
@@ -342,7 +342,7 @@ fun AddTaskScreen(
                     Text(if (showAdvancedOptions) "Hide Scheduling Options" else "Show Scheduling Options")
                 }
                 
-                // Advanced Options Section
+                
                 if (showAdvancedOptions) {
                     Spacer(modifier = Modifier.height(16.dp))
                     
@@ -358,7 +358,7 @@ fun AddTaskScreen(
                     
                     Spacer(modifier = Modifier.height(8.dp))
                     
-                    // Repeat Type Selection
+                    
                     var repeatTypeExpanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
                         expanded = repeatTypeExpanded,
@@ -387,7 +387,7 @@ fun AddTaskScreen(
                                 text = { Text("No repeat (one-time)") },
                                 onClick = {
                                     repeatType = RepeatType.NONE
-                                    maxActivations = null // Clear activation limit for non-repeating
+                                    maxActivations = null 
                                     repeatTypeExpanded = false
                                 }
                             )
@@ -415,7 +415,7 @@ fun AddTaskScreen(
                         }
                     }
                     
-                    // Interval for EVERY_N_DAYS
+                    
                     if (repeatType == RepeatType.EVERY_N_DAYS) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(
@@ -437,7 +437,7 @@ fun AddTaskScreen(
                         }
                     }
                     
-                    // Day selection for WEEKLY
+                    
                     if (repeatType == RepeatType.WEEKLY) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -490,7 +490,7 @@ fun AddTaskScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Start time
+                        
                         OutlinedButton(
                             onClick = { showTimeWindowStartPicker = true },
                             modifier = Modifier.weight(1f)
@@ -502,7 +502,7 @@ fun AddTaskScreen(
                         
                         Text(" - ", modifier = Modifier.padding(horizontal = 8.dp))
                         
-                        // End time
+                        
                         OutlinedButton(
                             onClick = { showTimeWindowEndPicker = true },
                             modifier = Modifier.weight(1f)
@@ -526,7 +526,7 @@ fun AddTaskScreen(
                         }
                     }
                     
-                    // Activation Limit - only show for repeating tasks
+                    
                     if (repeatType != RepeatType.NONE) {
                         Spacer(modifier = Modifier.height(16.dp))
                         
@@ -566,7 +566,7 @@ fun AddTaskScreen(
                             }
                         }
                         
-                        // Show current activation count if editing
+                        
                         if (taskToEdit != null && taskToEdit.currentActivations > 0) {
                             Text(
                                 text = "Already triggered ${taskToEdit.currentActivations} time(s)",
@@ -591,7 +591,7 @@ fun AddTaskScreen(
                 )
             }
 
-            // Map
+            
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -638,7 +638,7 @@ fun AddTaskScreen(
         }
     }
 
-    // Dialog for choosing favourite place
+    
     if (showFavouritePlacesDialog) {
         AlertDialog(
             onDismissRequest = { showFavouritePlacesDialog = false },
@@ -652,13 +652,13 @@ fun AddTaskScreen(
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
                                 .clickable {
-                                    // Apply favourite place data
+                                    
                                     address = place.name
                                     selectedLocation = LatLng(place.latitude, place.longitude)
                                     radius = place.radius
                                     isAddressEdited = true
 
-                                    // Move camera to the location
+                                    
                                     scope.launch {
                                         cameraPositionState.animate(
                                             CameraUpdateFactory.newLatLngZoom(
@@ -808,7 +808,7 @@ fun AddTaskScreen(
         )
     }
     
-    // Time Window Start Picker
+    
     if (showTimeWindowStartPicker) {
         val timePickerState = rememberTimePickerState(
             initialHour = timeWindowStart?.div(60) ?: 9,
@@ -844,7 +844,7 @@ fun AddTaskScreen(
         )
     }
     
-    // Time Window End Picker
+    
     if (showTimeWindowEndPicker) {
         val timePickerState = rememberTimePickerState(
             initialHour = timeWindowEnd?.div(60) ?: 17,
@@ -922,9 +922,7 @@ private fun getAddressFromLocation(context: Context, latLng: LatLng): String? {
     }
 }
 
-/**
- * Formats minutes from midnight to a readable time string (e.g., 840 -> "14:00")
- */
+
 private fun formatMinutesToTime(minutes: Int): String {
     val hours = minutes / 60
     val mins = minutes % 60

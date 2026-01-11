@@ -40,13 +40,13 @@ fun AddFavouritePlaceScreen(
 
     val context = LocalContext.current
 
-    // Default location (Krakow, Poland)
+    
     val defaultLocation = LatLng(50.0647, 19.9450)
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(selectedLocation ?: defaultLocation, 15f)
     }
 
-    // Auto-update address when location changes
+    
     LaunchedEffect(selectedLocation) {
         selectedLocation?.let { location ->
             val geocodedAddress = getAddressFromLocation(context, location)
@@ -123,7 +123,7 @@ fun AddFavouritePlaceScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Input fields section
+            
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -160,7 +160,7 @@ fun AddFavouritePlaceScreen(
                 )
             }
 
-            // Map section
+            
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -176,7 +176,7 @@ fun AddFavouritePlaceScreen(
                     selectedLocation?.let { location ->
                         val markerState = rememberMarkerState(position = location)
 
-                        // Update marker position when location changes
+                        
                         LaunchedEffect(location) {
                             markerState.position = location
                         }

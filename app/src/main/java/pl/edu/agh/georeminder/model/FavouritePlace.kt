@@ -9,7 +9,7 @@ data class FavouritePlace(
     val address: String,
     val latitude: Double,
     val longitude: Double,
-    val radius: Float = 100f // Radius in meters
+    val radius: Float = 100f 
 )
 
 
